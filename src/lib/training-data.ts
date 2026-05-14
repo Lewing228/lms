@@ -12,6 +12,7 @@ import type {
   TraineeSummary,
   TrainingState,
 } from "@/types/training";
+import { assetPath } from "@/lib/assets";
 
 export const missions: Mission[] = [
   {
@@ -45,14 +46,14 @@ export const missions: Mission[] = [
         title: "WELCOME ролик",
         description: "Первое знакомство с рестораном и ожиданиями от стажера.",
         duration: "1 мин 59 сек",
-        url: "/training/videos/welcome.mp4",
+        url: assetPath("/training/videos/welcome.mp4"),
       },
       {
         id: "welcome-book-pdf",
         type: "pdf",
         title: "WELCOME BOOK",
         sourceLabel: "WELCOME BOOK. обновленный.pdf",
-        fileUrl: "/training/pdfs/welcome-book.pdf",
+        fileUrl: assetPath("/training/pdfs/welcome-book.pdf"),
       },
     ],
     quiz: {

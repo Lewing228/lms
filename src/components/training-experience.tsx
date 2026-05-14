@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, ElementType, SetStateAction } from "react";
+import { assetPath } from "@/lib/assets";
 import {
   achievements,
   admissionRequirements,
@@ -47,7 +48,10 @@ type MissionStatus = "done" | "current" | "locked";
 
 const storageKey = "waiter-training-state-v1";
 const defaultBlockOrder: MissionContentBlockType[] = ["text", "video", "pdf", "quiz"];
-const welcomeBookPdfUrl = "/training/pdfs/welcome-book.pdf";
+const welcomeBookPdfUrl = assetPath("/training/pdfs/welcome-book.pdf");
+const welcomeVideoUrl = assetPath("/training/videos/welcome.mp4");
+const serviceIntroVideoUrl = assetPath("/training/service-intro.mp4");
+const pdfWorkerUrl = assetPath("/pdf.worker.min.mjs");
 
 const pdfMinZoom = 50;
 const pdfMaxZoom = 600;
@@ -1186,7 +1190,7 @@ function AdminView({
             title: "Новое видео",
             description: "Описание видео",
             duration: "1 мин",
-            url: "/training/videos/welcome.mp4",
+            url: welcomeVideoUrl,
           }
         : type === "pdf"
           ? {
@@ -1822,7 +1826,7 @@ function getMissionContentBlocks(mission: Mission, blockOrder?: MissionContentBl
         title: `Видео: ${mission.title}`,
         description: `Короткий разбор темы "${mission.subtitle}" перед практикой или тестом.`,
         duration: "6 сек",
-        url: "/training/service-intro.mp4",
+        url: serviceIntroVideoUrl,
       },
       {
         id: `${mission.id}-pdf`,
@@ -2126,7 +2130,7 @@ function PdfFileViewer({
       let loadedPdf: any = null;
       try {
         const pdfjs = await import("pdfjs-dist/build/pdf.mjs");
-        pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+        pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
         loadedPdf = await pdfjs.getDocument(fileUrl).promise;
         loadedPdfForCleanup = loadedPdf;
 

@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import { assetPath } from "@/lib/assets";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Путь официанта",
   description: "Игровая обучающая платформа для стажеров ресторана",
   applicationName: "Путь официанта",
-  manifest: "/manifest.json",
+  manifest: assetPath("/manifest.json"),
 };
 
 export const viewport: Viewport = {
