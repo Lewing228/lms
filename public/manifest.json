@@ -1,0 +1,17 @@
+{
+  "name": "Путь официанта",
+  "short_name": "Официант",
+  "description": "Игровое обучение стажера до допуска официанта",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffaf1",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
