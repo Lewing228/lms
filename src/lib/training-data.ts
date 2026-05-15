@@ -3,6 +3,10 @@ import type {
   AdmissionRequirement,
   BonusRule,
   DailyControl,
+  DevelopmentGoal,
+  EmployeeLevel,
+  KpiMetric,
+  LeaderboardEntry,
   MentorSkill,
   Mission,
   PenaltyRule,
@@ -507,6 +511,64 @@ export const admissionRequirements: AdmissionRequirement[] = [
   { id: "practice", title: "Практика пройдена", description: "Обслуживание стола, заказ, подача и работа с гостем" },
   { id: "clean-record", title: "Нет грубых нарушений", description: "Нет жалоб, конфликтов и критичных ошибок" },
   { id: "mentor", title: "Рекомендация наставника", description: "Наставник подтверждает готовность к самостоятельной работе" },
+];
+
+export const employeeLevels: EmployeeLevel[] = [
+  { level: 1, status: "Стажер", requiredXp: 0, description: "Проходит адаптацию и первые стандарты" },
+  { level: 2, status: "Помощник официанта", requiredXp: 45, description: "Работает под контролем наставника" },
+  { level: 3, status: "Официант", requiredXp: 95, description: "Допущен к самостоятельной работе" },
+  { level: 4, status: "Сильный официант", requiredXp: 150, description: "Развивает продажи и стабильный сервис" },
+  { level: 5, status: "Эксперт сервиса", requiredXp: 220, description: "Держит высокий рейтинг и отзывы" },
+  { level: 6, status: "Старший официант", requiredXp: 320, description: "Помогает управлять залом и стажерами" },
+  { level: 7, status: "Наставник", requiredXp: 450, description: "Обучает новичков и ведет чек-листы" },
+  { level: 8, status: "Кадровый резерв", requiredXp: 620, description: "Готовится к администрированию и управлению" },
+];
+
+export const leaderboardEntries: LeaderboardEntry[] = [
+  { id: "alina", name: "Алина С.", role: "Стажер", rating: 78, xp: 0, badges: 0, streakDays: 3 },
+  { id: "dina", name: "Дина К.", role: "Помощник официанта", rating: 91, xp: 72, badges: 4, streakDays: 9 },
+  { id: "maksim", name: "Максим Р.", role: "Стажер", rating: 84, xp: 38, badges: 2, streakDays: 5 },
+  { id: "ilya", name: "Илья Н.", role: "Официант", rating: 96, xp: 128, badges: 7, streakDays: 14 },
+  { id: "saule", name: "Сауле М.", role: "Сильный официант", rating: 99, xp: 186, badges: 9, streakDays: 21 },
+];
+
+export const developmentGoals: DevelopmentGoal[] = [
+  {
+    id: "no-late",
+    title: "7 дней без опозданий",
+    description: "Открывает серию бонусов и повышает дисциплину в рейтинге",
+    metric: "серия",
+    target: "7 дней",
+  },
+  {
+    id: "menu-test",
+    title: "Тест по меню выше 85%",
+    description: "Нужен для допуска к самостоятельной работе",
+    metric: "тест",
+    target: "85%+",
+  },
+  {
+    id: "sales-practice",
+    title: "Отработать upsell",
+    description: "Рекомендация десерта или напитка в живом сервисе",
+    metric: "продажа",
+    target: "1 успешная",
+  },
+  {
+    id: "full-service",
+    title: "Полный цикл обслуживания",
+    description: "Приветствие, меню, заказ, подача, контроль стола и расчет",
+    metric: "экзамен",
+    target: "6/6 чеков",
+  },
+];
+
+export const kpiMetrics: KpiMetric[] = [
+  { id: "avg-check", title: "Средний чек", current: "учебный режим", target: "рост после допуска", status: "locked" },
+  { id: "desserts", title: "Продажи десертов", current: "тренировка", target: "план смены", status: "watch" },
+  { id: "drinks", title: "Продажи напитков", current: "тренировка", target: "план смены", status: "watch" },
+  { id: "reviews", title: "Отзывы гостей", current: "без жалоб", target: "высокий рейтинг", status: "good" },
+  { id: "mystery-guest", title: "Тайный гость", current: "после допуска", target: "не ниже стандарта", status: "locked" },
 ];
 
 export const traineeSummaries: TraineeSummary[] = [

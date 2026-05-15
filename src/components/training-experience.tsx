@@ -34,6 +34,10 @@ import {
   bonusRules,
   dailyControls,
   defaultTrainingState,
+  developmentGoals,
+  employeeLevels,
+  kpiMetrics,
+  leaderboardEntries,
   mentorSkills,
   missions,
   penaltyRules,
@@ -155,6 +159,47 @@ function getRole(state: TrainingState) {
   if (state.finalApproved || state.completedMissionIds.includes("final-exam")) return "Официант";
   if (state.completedMissionIds.length >= 5) return "Помощник официанта";
   return "Стажер";
+}
+
+function getCurrentLevel(state: TrainingState) {
+  return employeeLevels.reduce((currentLevel, level) => (state.xp >= level.requiredXp ? level : currentLevel), employeeLevels[0]);
+}
+
+function getNextLevel(state: TrainingState) {
+  const currentLevel = getCurrentLevel(state);
+  return employeeLevels.find((level) => level.level > currentLevel.level);
+}
+
+function getLevelProgress(state: TrainingState) {
+  const currentLevel = getCurrentLevel(state);
+  const nextLevel = getNextLevel(state);
+  if (!nextLevel) return 100;
+
+  const earnedInLevel = state.xp - currentLevel.requiredXp;
+  const neededForLevel = nextLevel.requiredXp - currentLevel.requiredXp;
+  return Math.max(0, Math.min(100, Math.round((earnedInLevel / neededForLevel) * 100)));
+}
+
+function getCleanStreak(state: TrainingState) {
+  const repeatCount = Object.values(state.shiftEntryStatuses).filter((status) => status === "repeat").length;
+  return Math.max(0, Math.min(7, state.completedMissionIds.length + state.mentorApprovedMissionIds.length - repeatCount));
+}
+
+function getPersonalRating(state: TrainingState, mentorAverage: string) {
+  const completionPart = Math.round((state.completedMissionIds.length / missions.length) * 34);
+  const mentorPart = Math.round((Number(mentorAverage) / 5) * 26);
+  const achievementPart = Math.round((state.unlockedAchievementIds.length / achievements.length) * 18);
+  const streakPart = Math.round((getCleanStreak(state) / 7) * 12);
+  const penalty = Object.values(state.shiftEntryStatuses).filter((status) => status === "repeat").length * 6;
+  return Math.max(0, Math.min(100, 10 + completionPart + mentorPart + achievementPart + streakPart - penalty));
+}
+
+function getPenaltyRisk(state: TrainingState) {
+  const repeatCount = Object.values(state.shiftEntryStatuses).filter((status) => status === "repeat").length;
+  const lowScores = Object.values(state.mentorScores).filter((score) => score < 4).length;
+  if (repeatCount > 0 || lowScores >= 3) return "Высокий";
+  if (lowScores > 0) return "Средний";
+  return "Низкий";
 }
 
 function applyMissionDraft(mission: Mission, state: TrainingState): Mission {
@@ -1109,6 +1154,12 @@ function journalStatusClass(status: ShiftJournalStatus) {
   return "bg-amber-100 text-amber-800";
 }
 
+function kpiStatusClass(status: "good" | "watch" | "locked") {
+  if (status === "good") return "bg-emerald-100 text-emerald-700";
+  if (status === "watch") return "bg-amber-100 text-amber-800";
+  return "bg-slate-200 text-slate-500";
+}
+
 function AdminView({
   state,
   progress,
@@ -1130,6 +1181,16 @@ function AdminView({
 }) {
   const [selectedMissionId, setSelectedMissionId] = useState(currentMission.id);
   const completed = state.completedMissionIds.length;
+  const currentLevel = getCurrentLevel(state);
+  const nextLevel = getNextLevel(state);
+  const levelProgress = getLevelProgress(state);
+  const cleanStreak = getCleanStreak(state);
+  const personalRating = getPersonalRating(state, mentorAverage);
+  const penaltyRisk = getPenaltyRisk(state);
+  const leaderboard = leaderboardEntries
+    .map((entry) => (entry.id === "alina" ? { ...entry, role: getRole(state), rating: personalRating, xp: state.xp, badges: state.unlockedAchievementIds.length, streakDays: cleanStreak } : entry))
+    .sort((left, right) => right.rating - left.rating);
+  const alinaPlace = leaderboard.findIndex((entry) => entry.id === "alina") + 1;
   const selectedMission = missionList.find((mission) => mission.id === selectedMissionId) ?? currentMission;
   const theoryReady = completed >= 19;
   const basePracticeReady = ["day-one-check", "tray-practice", "service-checklist", "mentor-shift-one", "mentor-shift-two"].every((id) =>
@@ -1229,9 +1290,143 @@ function AdminView({
       <SectionTitle eyebrow="Профиль" title="Алина С." action={`${progress}%`} />
       <div className="mt-4 grid gap-3">
         <AdminMetric label="Текущий статус" value={getRole(state)} hint="Путь стажер - официант" />
+        <AdminMetric label="Уровень" value={`${currentLevel.level}`} hint={currentLevel.status} />
+        <AdminMetric label="Личный рейтинг" value={`${personalRating}`} hint={`Место #${alinaPlace} в ресторане`} />
         <AdminMetric label="Закрыто миссий" value={`${state.completedMissionIds.length}/${missionList.length}`} hint="По карте обучения" />
         <AdminMetric label="Средняя оценка наставника" value={mentorAverage} hint="Чек-лист практики" />
         <AdminMetric label="Звезды" value={`${state.stars}`} hint="Можно тратить в магазине наград" />
+      </div>
+
+      <article className="mt-4 overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-sm">
+        <div className="bg-slate-950 p-5 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase text-white/50">Уровень сотрудника</p>
+              <h3 className="mt-1 text-2xl font-black">{currentLevel.status}</h3>
+              <p className="mt-2 text-sm font-bold leading-6 text-white/60">{currentLevel.description}</p>
+            </div>
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white text-xl font-black text-slate-950">
+              {currentLevel.level}
+            </div>
+          </div>
+          <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/15">
+            <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-amber-300" style={{ width: `${levelProgress}%` }} />
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3 text-xs font-black text-white/60">
+            <span>{state.xp} XP</span>
+            <span>{nextLevel ? `До "${nextLevel.status}" нужно ${Math.max(0, nextLevel.requiredXp - state.xp)} XP` : "Максимальный уровень"}</span>
+          </div>
+        </div>
+        <div className="grid gap-2 p-4">
+          {employeeLevels.slice(0, 4).map((level) => {
+            const unlocked = state.xp >= level.requiredXp;
+            const active = level.level === currentLevel.level;
+            return (
+              <div key={level.level} className={`flex items-center gap-3 rounded-2xl p-3 ${active ? "bg-emerald-50" : "bg-slate-50"}`}>
+                <span className={`grid h-8 w-8 place-items-center rounded-xl text-xs font-black ${unlocked ? "bg-slate-950 text-white" : "bg-white text-slate-400"}`}>
+                  {level.level}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-black">{level.status}</p>
+                  <p className="text-xs font-bold text-slate-500">{level.requiredXp} XP</p>
+                </div>
+                {unlocked ? <BadgeCheck className="text-emerald-600" size={18} /> : <Lock className="text-slate-300" size={16} />}
+              </div>
+            );
+          })}
+        </div>
+      </article>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <article className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase text-emerald-700">Рейтинг ресторана</p>
+              <h3 className="font-black">Лидерборд</h3>
+            </div>
+            <span className="rounded-full bg-amber-100 px-3 py-2 text-xs font-black text-amber-800">#{alinaPlace}</span>
+          </div>
+          <div className="mt-4 grid gap-2">
+            {leaderboard.slice(0, 5).map((entry, index) => (
+              <div key={entry.id} className={`grid grid-cols-[32px_1fr_auto] items-center gap-3 rounded-2xl p-3 ${entry.id === "alina" ? "bg-emerald-50" : "bg-slate-50"}`}>
+                <span className="grid h-8 w-8 place-items-center rounded-xl bg-white text-xs font-black text-slate-600">{index + 1}</span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black">{entry.name}</p>
+                  <p className="truncate text-xs font-bold text-slate-500">{entry.role} · {entry.badges} бейджей · {entry.streakDays} дней без опозданий</p>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700">{entry.rating}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+          <p className="text-xs font-black uppercase text-emerald-700">Мотивация</p>
+          <h3 className="font-black">Цели и рекомендации</h3>
+          <div className="mt-4 grid gap-2">
+            {developmentGoals.map((goal) => {
+              const done =
+                goal.id === "no-late"
+                  ? cleanStreak >= 7
+                  : goal.id === "menu-test"
+                    ? state.completedMissionIds.includes("menu-test")
+                    : goal.id === "sales-practice"
+                      ? state.completedMissionIds.includes("sales")
+                      : practicalExamItems.every((item) => state.practicalExamChecks[item.id]);
+              return (
+                <div key={goal.id} className={`rounded-2xl p-3 ${done ? "bg-emerald-50" : "bg-slate-50"}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black">{goal.title}</p>
+                      <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{goal.description}</p>
+                    </div>
+                    <span className={`flex-none rounded-full px-3 py-1 text-[11px] font-black ${done ? "bg-emerald-100 text-emerald-700" : "bg-white text-slate-500"}`}>
+                      {done ? "готово" : goal.target}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </article>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <article className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase text-emerald-700">KPI после допуска</p>
+              <h3 className="font-black">Продажи и сервис</h3>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-black text-slate-600">этап 4</span>
+          </div>
+          <div className="mt-4 grid gap-2">
+            {kpiMetrics.map((metric) => (
+              <div key={metric.id} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3">
+                <div>
+                  <p className="text-sm font-black">{metric.title}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{metric.current}</p>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-[11px] font-black ${kpiStatusClass(metric.status)}`}>{metric.target}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+          <p className="text-xs font-black uppercase text-emerald-700">Штрафы и риск</p>
+          <h3 className="font-black">Дисциплина профиля</h3>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <InfoPill label="серия без опозданий" value={`${cleanStreak}/7`} />
+            <InfoPill label="риск штрафов" value={penaltyRisk} />
+          </div>
+          <div className="mt-4 rounded-2xl bg-rose-50 p-3">
+            <p className="text-xs font-black uppercase text-rose-700">Что влияет</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-700">
+              Опоздания, нарушения формы, жалобы, провал тестов и повторные смены снижают рейтинг и могут заблокировать допуск.
+            </p>
+          </div>
+        </article>
       </div>
 
       <article className="mt-4 rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">

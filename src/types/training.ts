@@ -120,6 +120,39 @@ export type AdmissionRequirement = {
   description: string;
 };
 
+export type EmployeeLevel = {
+  level: number;
+  status: string;
+  requiredXp: number;
+  description: string;
+};
+
+export type LeaderboardEntry = {
+  id: string;
+  name: string;
+  role: string;
+  rating: number;
+  xp: number;
+  badges: number;
+  streakDays: number;
+};
+
+export type DevelopmentGoal = {
+  id: string;
+  title: string;
+  description: string;
+  metric: string;
+  target: string;
+};
+
+export type KpiMetric = {
+  id: string;
+  title: string;
+  current: string;
+  target: string;
+  status: "good" | "watch" | "locked";
+};
+
 export type MentorSkill = {
   id: string;
   title: string;
