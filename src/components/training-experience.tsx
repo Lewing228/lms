@@ -47,7 +47,7 @@ import {
 } from "@/lib/training-data";
 import type { Achievement, Mission, MissionContentBlock, MissionContentBlockType, MissionContentDraft, MissionQuiz, ShiftJournalStatus, TrainingState } from "@/types/training";
 
-type ViewName = "map" | "achievements" | "shop" | "mentor" | "admin";
+type ViewName = "map" | "achievements" | "shop" | "mentor" | "profile" | "admin";
 type MissionStatus = "done" | "current" | "locked";
 
 const storageKey = "waiter-training-state-v1";
@@ -56,6 +56,13 @@ const welcomeBookPdfUrl = assetPath("/training/pdfs/welcome-book.pdf");
 const welcomeVideoUrl = assetPath("/training/videos/welcome.mp4");
 const serviceIntroVideoUrl = assetPath("/training/service-intro.mp4");
 const pdfWorkerUrl = assetPath("/pdf.worker.min.mjs");
+const adminVideoLibrary = [
+  { label: "WELCOME ролик", description: "Первое знакомство со стажировкой", url: welcomeVideoUrl },
+  { label: "Сервисный пример", description: "Короткое демо для стандартных уроков", url: serviceIntroVideoUrl },
+];
+const adminPdfLibrary = [
+  { label: "WELCOME BOOK", description: "Основной welcome PDF", url: welcomeBookPdfUrl },
+];
 
 const pdfMinZoom = 50;
 const pdfMaxZoom = 600;
@@ -66,7 +73,8 @@ const viewItems: { id: ViewName; label: string; icon: ElementType }[] = [
   { id: "achievements", label: "Награды", icon: Medal },
   { id: "shop", label: "Магазин", icon: ShoppingBag },
   { id: "mentor", label: "Наставник", icon: ClipboardCheck },
-  { id: "admin", label: "Профиль", icon: ShieldCheck },
+  { id: "profile", label: "Профиль", icon: UserCheck },
+  { id: "admin", label: "Админ", icon: ShieldCheck },
 ];
 
 function cloneDefaultState(): TrainingState {
@@ -525,6 +533,11 @@ export function TrainingExperience() {
             />
           </div>
         )}
+        {activeView === "profile" && (
+          <div className="animate-in py-5">
+            <ProfileView state={state} progress={progress} mentorAverage={mentorAverage} missionList={visibleMissions} />
+          </div>
+        )}
         {activeView === "admin" && (
           <div className="animate-in py-5">
             <AdminView
@@ -542,7 +555,7 @@ export function TrainingExperience() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#eadfd4] bg-white/95 px-3 py-2 shadow-[0_-8px_30px_rgba(55,40,32,0.08)] backdrop-blur-xl">
-        <div className="mx-auto grid max-w-xl grid-cols-5 gap-1">
+        <div className="mx-auto grid max-w-2xl grid-cols-6 gap-1">
           {viewItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeView === item.id;
@@ -1160,6 +1173,221 @@ function kpiStatusClass(status: "good" | "watch" | "locked") {
   return "bg-slate-200 text-slate-500";
 }
 
+function mediaNameFromUrl(url: string) {
+  if (!url) return "Файл не выбран";
+  if (url.startsWith("blob:")) return "Файл с компьютера";
+  const lastPart = url.split("/").filter(Boolean).at(-1) ?? url;
+  return decodeURIComponent(lastPart);
+}
+
+function AdminMediaPicker({
+  label,
+  accept,
+  currentUrl,
+  library,
+  onSelect,
+}: {
+  label: string;
+  accept: string;
+  currentUrl: string;
+  library: { label: string; description: string; url: string }[];
+  onSelect: (url: string, fileName: string) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-black/5 bg-slate-50 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-black uppercase text-slate-400">{label}</p>
+          <p className="mt-1 text-sm font-black text-slate-700">{mediaNameFromUrl(currentUrl)}</p>
+        </div>
+        <label className="flex min-h-10 cursor-pointer items-center justify-center rounded-2xl bg-slate-950 px-4 text-xs font-black text-white">
+          Закрепить
+          <input
+            type="file"
+            accept={accept}
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              onSelect(URL.createObjectURL(file), file.name);
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {library.map((item) => (
+          <button
+            type="button"
+            key={item.url}
+            onClick={() => onSelect(item.url, item.label)}
+            className={`rounded-2xl p-3 text-left ${
+              currentUrl === item.url ? "bg-emerald-100 text-emerald-900" : "bg-white text-slate-700"
+            }`}
+          >
+            <span className="block text-xs font-black">{item.label}</span>
+            <span className="mt-1 block text-[11px] font-bold leading-4 text-slate-500">{item.description}</span>
+          </button>
+        ))}
+      </div>
+      <p className="mt-3 text-[11px] font-bold leading-4 text-slate-400">
+        В демо файл прикрепляется в браузере. В продакшне эта кнопка будет загружать файл в хранилище и сохранять ссылку автоматически.
+      </p>
+    </div>
+  );
+}
+
+function ProfileView({
+  state,
+  progress,
+  mentorAverage,
+  missionList,
+}: {
+  state: TrainingState;
+  progress: number;
+  mentorAverage: string;
+  missionList: Mission[];
+}) {
+  const currentLevel = getCurrentLevel(state);
+  const nextLevel = getNextLevel(state);
+  const levelProgress = getLevelProgress(state);
+  const cleanStreak = getCleanStreak(state);
+  const personalRating = getPersonalRating(state, mentorAverage);
+  const penaltyRisk = getPenaltyRisk(state);
+  const leaderboard = leaderboardEntries
+    .map((entry) => (entry.id === "alina" ? { ...entry, role: getRole(state), rating: personalRating, xp: state.xp, badges: state.unlockedAchievementIds.length, streakDays: cleanStreak } : entry))
+    .sort((left, right) => right.rating - left.rating);
+  const alinaPlace = leaderboard.findIndex((entry) => entry.id === "alina") + 1;
+
+  return (
+    <section>
+      <SectionTitle eyebrow="Профиль" title="Алина С." action={`${progress}%`} />
+      <div className="mt-4 grid gap-3">
+        <AdminMetric label="Текущий статус" value={getRole(state)} hint="Путь стажер - официант" />
+        <AdminMetric label="Уровень" value={`${currentLevel.level}`} hint={currentLevel.status} />
+        <AdminMetric label="Личный рейтинг" value={`${personalRating}`} hint={`Место #${alinaPlace} в ресторане`} />
+        <AdminMetric label="Закрыто миссий" value={`${state.completedMissionIds.length}/${missionList.length}`} hint="По карте обучения" />
+        <AdminMetric label="Средняя оценка наставника" value={mentorAverage} hint="Чек-лист практики" />
+        <AdminMetric label="Звезды" value={`${state.stars}`} hint="Можно тратить в магазине наград" />
+      </div>
+
+      <article className="mt-4 overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-sm">
+        <div className="bg-slate-950 p-5 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase text-white/50">Уровень сотрудника</p>
+              <h3 className="mt-1 text-2xl font-black">{currentLevel.status}</h3>
+              <p className="mt-2 text-sm font-bold leading-6 text-white/60">{currentLevel.description}</p>
+            </div>
+            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white text-xl font-black text-slate-950">
+              {currentLevel.level}
+            </div>
+          </div>
+          <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/15">
+            <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-amber-300" style={{ width: `${levelProgress}%` }} />
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3 text-xs font-black text-white/60">
+            <span>{state.xp} XP</span>
+            <span>{nextLevel ? `До "${nextLevel.status}" нужно ${Math.max(0, nextLevel.requiredXp - state.xp)} XP` : "Максимальный уровень"}</span>
+          </div>
+        </div>
+      </article>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <article className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase text-emerald-700">Рейтинг ресторана</p>
+              <h3 className="font-black">Лидерборд</h3>
+            </div>
+            <span className="rounded-full bg-amber-100 px-3 py-2 text-xs font-black text-amber-800">#{alinaPlace}</span>
+          </div>
+          <div className="mt-4 grid gap-2">
+            {leaderboard.slice(0, 5).map((entry, index) => (
+              <div key={entry.id} className={`grid grid-cols-[32px_1fr_auto] items-center gap-3 rounded-2xl p-3 ${entry.id === "alina" ? "bg-emerald-50" : "bg-slate-50"}`}>
+                <span className="grid h-8 w-8 place-items-center rounded-xl bg-white text-xs font-black text-slate-600">{index + 1}</span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black">{entry.name}</p>
+                  <p className="truncate text-xs font-bold text-slate-500">{entry.role} · {entry.badges} бейджей · {entry.streakDays} дней без опозданий</p>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700">{entry.rating}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+          <p className="text-xs font-black uppercase text-emerald-700">Мотивация</p>
+          <h3 className="font-black">Цели и рекомендации</h3>
+          <div className="mt-4 grid gap-2">
+            {developmentGoals.map((goal) => {
+              const done =
+                goal.id === "no-late"
+                  ? cleanStreak >= 7
+                  : goal.id === "menu-test"
+                    ? state.completedMissionIds.includes("menu-test")
+                    : goal.id === "sales-practice"
+                      ? state.completedMissionIds.includes("sales")
+                      : practicalExamItems.every((item) => state.practicalExamChecks[item.id]);
+              return (
+                <div key={goal.id} className={`rounded-2xl p-3 ${done ? "bg-emerald-50" : "bg-slate-50"}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black">{goal.title}</p>
+                      <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{goal.description}</p>
+                    </div>
+                    <span className={`flex-none rounded-full px-3 py-1 text-[11px] font-black ${done ? "bg-emerald-100 text-emerald-700" : "bg-white text-slate-500"}`}>
+                      {done ? "готово" : goal.target}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </article>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <article className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase text-emerald-700">KPI после допуска</p>
+              <h3 className="font-black">Продажи и сервис</h3>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-black text-slate-600">этап 4</span>
+          </div>
+          <div className="mt-4 grid gap-2">
+            {kpiMetrics.map((metric) => (
+              <div key={metric.id} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3">
+                <div>
+                  <p className="text-sm font-black">{metric.title}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{metric.current}</p>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-[11px] font-black ${kpiStatusClass(metric.status)}`}>{metric.target}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+          <p className="text-xs font-black uppercase text-emerald-700">Штрафы и риск</p>
+          <h3 className="font-black">Дисциплина профиля</h3>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <InfoPill label="серия без опозданий" value={`${cleanStreak}/7`} />
+            <InfoPill label="риск штрафов" value={penaltyRisk} />
+          </div>
+          <div className="mt-4 rounded-2xl bg-rose-50 p-3">
+            <p className="text-xs font-black uppercase text-rose-700">Что влияет</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-700">
+              Опоздания, нарушения формы, жалобы, провал тестов и повторные смены снижают рейтинг и могут заблокировать допуск.
+            </p>
+          </div>
+        </article>
+      </div>
+    </section>
+  );
+}
+
 function AdminView({
   state,
   progress,
@@ -1287,146 +1515,13 @@ function AdminView({
 
   return (
     <section>
-      <SectionTitle eyebrow="Профиль" title="Алина С." action={`${progress}%`} />
+      <SectionTitle eyebrow="Админ панель" title="Управление обучением" action={`${missionList.length} миссий`} />
       <div className="mt-4 grid gap-3">
-        <AdminMetric label="Текущий статус" value={getRole(state)} hint="Путь стажер - официант" />
-        <AdminMetric label="Уровень" value={`${currentLevel.level}`} hint={currentLevel.status} />
-        <AdminMetric label="Личный рейтинг" value={`${personalRating}`} hint={`Место #${alinaPlace} в ресторане`} />
+        <AdminMetric label="Сотрудник" value="Алина С." hint={getRole(state)} />
+        <AdminMetric label="Контент" value={selectedMission.title} hint="Выбранная миссия" />
         <AdminMetric label="Закрыто миссий" value={`${state.completedMissionIds.length}/${missionList.length}`} hint="По карте обучения" />
         <AdminMetric label="Средняя оценка наставника" value={mentorAverage} hint="Чек-лист практики" />
-        <AdminMetric label="Звезды" value={`${state.stars}`} hint="Можно тратить в магазине наград" />
-      </div>
-
-      <article className="mt-4 overflow-hidden rounded-[28px] border border-black/5 bg-white shadow-sm">
-        <div className="bg-slate-950 p-5 text-white">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase text-white/50">Уровень сотрудника</p>
-              <h3 className="mt-1 text-2xl font-black">{currentLevel.status}</h3>
-              <p className="mt-2 text-sm font-bold leading-6 text-white/60">{currentLevel.description}</p>
-            </div>
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white text-xl font-black text-slate-950">
-              {currentLevel.level}
-            </div>
-          </div>
-          <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/15">
-            <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-amber-300" style={{ width: `${levelProgress}%` }} />
-          </div>
-          <div className="mt-3 flex items-center justify-between gap-3 text-xs font-black text-white/60">
-            <span>{state.xp} XP</span>
-            <span>{nextLevel ? `До "${nextLevel.status}" нужно ${Math.max(0, nextLevel.requiredXp - state.xp)} XP` : "Максимальный уровень"}</span>
-          </div>
-        </div>
-        <div className="grid gap-2 p-4">
-          {employeeLevels.slice(0, 4).map((level) => {
-            const unlocked = state.xp >= level.requiredXp;
-            const active = level.level === currentLevel.level;
-            return (
-              <div key={level.level} className={`flex items-center gap-3 rounded-2xl p-3 ${active ? "bg-emerald-50" : "bg-slate-50"}`}>
-                <span className={`grid h-8 w-8 place-items-center rounded-xl text-xs font-black ${unlocked ? "bg-slate-950 text-white" : "bg-white text-slate-400"}`}>
-                  {level.level}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-black">{level.status}</p>
-                  <p className="text-xs font-bold text-slate-500">{level.requiredXp} XP</p>
-                </div>
-                {unlocked ? <BadgeCheck className="text-emerald-600" size={18} /> : <Lock className="text-slate-300" size={16} />}
-              </div>
-            );
-          })}
-        </div>
-      </article>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <article className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase text-emerald-700">Рейтинг ресторана</p>
-              <h3 className="font-black">Лидерборд</h3>
-            </div>
-            <span className="rounded-full bg-amber-100 px-3 py-2 text-xs font-black text-amber-800">#{alinaPlace}</span>
-          </div>
-          <div className="mt-4 grid gap-2">
-            {leaderboard.slice(0, 5).map((entry, index) => (
-              <div key={entry.id} className={`grid grid-cols-[32px_1fr_auto] items-center gap-3 rounded-2xl p-3 ${entry.id === "alina" ? "bg-emerald-50" : "bg-slate-50"}`}>
-                <span className="grid h-8 w-8 place-items-center rounded-xl bg-white text-xs font-black text-slate-600">{index + 1}</span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-black">{entry.name}</p>
-                  <p className="truncate text-xs font-bold text-slate-500">{entry.role} · {entry.badges} бейджей · {entry.streakDays} дней без опозданий</p>
-                </div>
-                <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700">{entry.rating}</span>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
-          <p className="text-xs font-black uppercase text-emerald-700">Мотивация</p>
-          <h3 className="font-black">Цели и рекомендации</h3>
-          <div className="mt-4 grid gap-2">
-            {developmentGoals.map((goal) => {
-              const done =
-                goal.id === "no-late"
-                  ? cleanStreak >= 7
-                  : goal.id === "menu-test"
-                    ? state.completedMissionIds.includes("menu-test")
-                    : goal.id === "sales-practice"
-                      ? state.completedMissionIds.includes("sales")
-                      : practicalExamItems.every((item) => state.practicalExamChecks[item.id]);
-              return (
-                <div key={goal.id} className={`rounded-2xl p-3 ${done ? "bg-emerald-50" : "bg-slate-50"}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-black">{goal.title}</p>
-                      <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{goal.description}</p>
-                    </div>
-                    <span className={`flex-none rounded-full px-3 py-1 text-[11px] font-black ${done ? "bg-emerald-100 text-emerald-700" : "bg-white text-slate-500"}`}>
-                      {done ? "готово" : goal.target}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </article>
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <article className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase text-emerald-700">KPI после допуска</p>
-              <h3 className="font-black">Продажи и сервис</h3>
-            </div>
-            <span className="rounded-full bg-slate-100 px-3 py-2 text-xs font-black text-slate-600">этап 4</span>
-          </div>
-          <div className="mt-4 grid gap-2">
-            {kpiMetrics.map((metric) => (
-              <div key={metric.id} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3">
-                <div>
-                  <p className="text-sm font-black">{metric.title}</p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">{metric.current}</p>
-                </div>
-                <span className={`rounded-full px-3 py-1 text-[11px] font-black ${kpiStatusClass(metric.status)}`}>{metric.target}</span>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
-          <p className="text-xs font-black uppercase text-emerald-700">Штрафы и риск</p>
-          <h3 className="font-black">Дисциплина профиля</h3>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <InfoPill label="серия без опозданий" value={`${cleanStreak}/7`} />
-            <InfoPill label="риск штрафов" value={penaltyRisk} />
-          </div>
-          <div className="mt-4 rounded-2xl bg-rose-50 p-3">
-            <p className="text-xs font-black uppercase text-rose-700">Что влияет</p>
-            <p className="mt-1 text-sm font-bold leading-6 text-slate-700">
-              Опоздания, нарушения формы, жалобы, провал тестов и повторные смены снижают рейтинг и могут заблокировать допуск.
-            </p>
-          </div>
-        </article>
+        <AdminMetric label="Черновики" value={`${Object.keys(state.missionContentDrafts).length}`} hint="Измененные задания" />
       </div>
 
       <article className="mt-4 rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
@@ -1550,7 +1645,24 @@ function AdminView({
                   {block.type === "video" && (
                     <>
                       <AdminInput label="Заголовок видео" value={block.title} onChange={(value) => updateBlock(block.id, (current) => current.type === "video" ? { ...current, title: value } : current)} />
-                      <AdminInput label="Ссылка на видео" value={block.url} onChange={(value) => updateBlock(block.id, (current) => current.type === "video" ? { ...current, url: value } : current)} />
+                      <AdminMediaPicker
+                        label="Видео-файл"
+                        accept="video/*"
+                        currentUrl={block.url}
+                        library={adminVideoLibrary}
+                        onSelect={(url, fileName) =>
+                          updateBlock(block.id, (current) =>
+                            current.type === "video"
+                              ? {
+                                  ...current,
+                                  url,
+                                  title: current.title || fileName,
+                                  description: current.description || `Прикреплен файл: ${fileName}`,
+                                }
+                              : current,
+                          )
+                        }
+                      />
                       <AdminInput label="Длительность видео" value={block.duration} onChange={(value) => updateBlock(block.id, (current) => current.type === "video" ? { ...current, duration: value } : current)} />
                       <AdminTextarea label="Описание видео" value={block.description} onChange={(value) => updateBlock(block.id, (current) => current.type === "video" ? { ...current, description: value } : current)} />
                     </>
@@ -1560,7 +1672,24 @@ function AdminView({
                     <>
                       <AdminInput label="Название PDF" value={block.title} onChange={(value) => updateBlock(block.id, (current) => current.type === "pdf" ? { ...current, title: value } : current)} />
                       <AdminInput label="Подпись источника" value={block.sourceLabel} onChange={(value) => updateBlock(block.id, (current) => current.type === "pdf" ? { ...current, sourceLabel: value } : current)} />
-                      <AdminInput label="Ссылка на PDF-файл" value={block.fileUrl ?? ""} onChange={(value) => updateBlock(block.id, (current) => current.type === "pdf" ? { ...current, fileUrl: value } : current)} />
+                      <AdminMediaPicker
+                        label="PDF-файл"
+                        accept="application/pdf"
+                        currentUrl={block.fileUrl ?? ""}
+                        library={adminPdfLibrary}
+                        onSelect={(url, fileName) =>
+                          updateBlock(block.id, (current) =>
+                            current.type === "pdf"
+                              ? {
+                                  ...current,
+                                  fileUrl: url,
+                                  sourceLabel: fileName,
+                                  title: current.title || fileName,
+                                }
+                              : current,
+                          )
+                        }
+                      />
                       <div className="grid gap-3">
                         {(block.pages ?? []).map((page, pageIndex) => (
                           <div key={`${block.id}-${pageIndex}`} className="rounded-2xl bg-slate-50 p-3">
